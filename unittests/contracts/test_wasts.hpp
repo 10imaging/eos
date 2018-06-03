@@ -1,21 +1,22 @@
 #pragma once
 #include <eosio/chain/webassembly/common.hpp>
 
-// These are handcrafted or otherwise tricky to generate with our tool chain
-/*
-static const char f32_add_wast[] = R"=====(
+static const char huge_tables_wast[] = R"=====(
 (module
- (import "env" "eosio_assert" (func $eosio_assert (param i32 i32)))
+ (import "env" "sha256" (func $sha256 (param i32 i32 i32)))
  (table 0 anyfunc)
- (memory $0 1)
- (export "memory" (memory $0))
+ (memory $0 32)
+ (data (i32.const 4) "hello")
  (export "apply" (func $apply))
- (func $apply (param $0 i64) (param $1 i64)
-    (call $eosio_assert (i32.eq (i32.trunc_u/f32 (f32.const 0x3f800000)) (i32.const 0x0)) (i32.const 0))
+ (func $apply (param $0 i64) (param $1 i64) (param $2 i64)
+  (call $sha256
+   (i32.const 4)
+   (i32.const 5)
+   (i32.const 16)
   )
  )
+)
 )=====";
-*/
 
 static const char aligned_ref_wast[] = R"=====(
 (module
@@ -562,3 +563,40 @@ static const char import_injected_wast[] =                                      
 " (import \"" EOSIO_INJECTED_MODULE_NAME "\" \"checktime\" (func $inj (param i32)))"  \
 " (func $apply (param $0 i64) (param $1 i64) (param $2 i64))"                         \
 ")";
+
+static const char memory_growth_memset_store[] = R"=====(
+(module
+ (export "apply" (func $apply))
+ (memory $0 1)
+ (func $apply (param $0 i64)(param $1 i64)(param $2 i64)
+    (drop (grow_memory (i32.const 2)))
+    (i32.store (i32.const 80000) (i32.const 2))
+    (i32.store (i32.const 140000) (i32.const 3))
+ )
+)
+)=====";
+
+static const char memory_growth_memset_test[] = R"=====(
+(module
+ (export "apply" (func $apply))
+ (import "env" "eosio_assert" (func $eosio_assert (param i32 i32)))
+ (memory $0 1)
+ (func $apply (param $0 i64)(param $1 i64)(param $2 i64)
+   (drop (grow_memory (i32.const 2)))
+   (call $eosio_assert
+     (i32.eq
+       (i32.load offset=80000 (i32.const 0))
+       (i32.const 0)
+     )
+     (i32.const 0)
+   )
+   (call $eosio_assert
+     (i32.eq
+       (i32.load offset=140000 (i32.const 0))
+       (i32.const 0)
+     )
+     (i32.const 0)
+   )
+ )
+)
+)=====";

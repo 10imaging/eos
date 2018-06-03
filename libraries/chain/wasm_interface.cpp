@@ -36,7 +36,9 @@ namespace eosio { namespace chain {
       try {
          Serialization::MemoryInputStream stream((U8*)code.data(), code.size());
          WASM::serialize(stream, module);
-      } catch(Serialization::FatalSerializationException& e) {
+      } catch(const Serialization::FatalSerializationException& e) {
+         EOS_ASSERT(false, wasm_serialization_error, e.message.c_str());
+      } catch(const IR::ValidationException& e) {
          EOS_ASSERT(false, wasm_serialization_error, e.message.c_str());
       }
 
@@ -49,7 +51,7 @@ namespace eosio { namespace chain {
       //there are a couple opportunties for improvement here--
       //Easy: Cache the Module created here so it can be reused for instantiaion
       //Hard: Kick off instantiation in a separate thread at this location
-	   }
+	 }
 
    void wasm_interface::apply( const digest_type& code_id, const shared_string& code, apply_context& context ) {
       my->get_instantiated_module(code_id, code, context.trx_context)->apply(context);
@@ -1279,7 +1281,12 @@ class memory_api : public context_aware_api {
       }
 
       int memcmp( array_ptr<const char> dest, array_ptr<const char> src, size_t length) {
-         return ::memcmp(dest, src, length);
+         int ret = ::memcmp(dest, src, length);
+         if(ret < 0)
+            return -1;
+         if(ret > 0)
+            return 1;
+         return 0;
       }
 
       char* memset( array_ptr<char> dest, int value, size_t length ) {
